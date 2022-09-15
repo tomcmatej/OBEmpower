@@ -22,6 +22,6 @@ target_link_libraries("${PROJECT_NAME}"
 	XMLInterpreter
 	xmlInput
 	XercesC::XercesC
-	Boost::boost)
-
-message(STATUS "Boost Libs: ${Boost_LIBRARIES}")
+	Boost::boost
+	PluginHeritance
+	PluginCommon)

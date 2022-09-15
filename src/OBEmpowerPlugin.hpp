@@ -9,16 +9,15 @@
 #include <mutex>
 #include <thread>
 #include <tcAdsClient.h>
+#include <PluginCommon.hpp>
 
 #define EMPOWER_MAX_TORQUE	10.0f	// Nm
 #define EMPOWER_MIN_TORQUE -10.0f	// Nm
 
 
-#if defined(_WIN32) && !defined(STATIC_UNIT_TESTS)
-class __declspec(dllexport) OBEmpowerPlugin : public AngleAndComsumerPlugin
-#else
-class OBEmpowerPlugin : public AngleAndComsumerPlugin
-#endif
+
+
+class DYNLIBEXPORT OBEmpowerPlugin : public AngleAndComsumerPlugin
 {
 	// Private Variables:
 	std::vector<std::string> _muscleNames;
@@ -50,6 +49,10 @@ class OBEmpowerPlugin : public AngleAndComsumerPlugin
 		time, 
 		LAST
 	};
+
+	void setMuscleForcePassive(const std::vector<double>& muscleForcePassive){}
+	void setMuscleForceActive(const std::vector<double>& muscleForceActive){}
+	void setTendonStrain(const std::vector<double>& tendonStrain){}
 
 	std::vector<unsigned long> _varNameVect;
 	void ethercatThread();
