@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION "3.10")
-project("OBEmpowerPlugin")
+project(PluginOBEmpower)
 
 file(GLOB project_SRC
 	"src/*.hpp"
