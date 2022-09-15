@@ -3,7 +3,7 @@
 
 #define	_USE_MATH_DEFINES
 #include "OSUtils.hpp"
-#include <AngleAndComsumerPlugin.h>
+#include <PluginInterface.hpp>
 #include <string>
 #include <set>
 #include <mutex>
@@ -14,32 +14,33 @@
 #define EMPOWER_MAX_TORQUE	10.0f	// Nm
 #define EMPOWER_MIN_TORQUE -10.0f	// Nm
 
+// Implemented to consume torques, to provide external torques and angles
 
-
-
-class DYNLIBEXPORT OBEmpowerPlugin : public AngleAndComsumerPlugin
+class DYNLIBEXPORT OBEmpowerPlugin : public PluginInterface
 {
 	// Private Variables:
-	std::vector<std::string> _muscleNames;
 	std::vector<std::string> _dofNames;
-	std::map<std::string, double> _jointAngle, _jointTorqueFromCEINMS, _jointTorqueFromExternalOrID, _jointStiffness, _muscleActivation, _muscleForce, _muscleFiberLength, _muscleFiberVelocity, _position, _velocity, _acceleration, _grf;
-	double _outputTimeStamp, _dataTimeStamp;
+	std::map<std::string, double> _jointTorqueFromCEINMS, _jointAngle, _jointTorqueFromExternalOrID;
 	std::string _currState;
-	std::map<std::string, std::map<std::string, double>> _subjectMuscleParameters;
 
 	// EtherCAT variables
 	std::shared_ptr<tcAdsClient> _tcAdsClientObj;
 	std::shared_ptr<std::thread> _ethercatThread;
 	std::map<std::string, double> _dataAngleEthercat;
 	std::map<std::string, double> _dataTorqueEthercat;
+	std::mutex _dataAccess;
 	std::mutex _mtxEthercat;
 	std::mutex _mtxTime;
 	bool _threadStop;
 	int _cpt;
 	double _timeStamp;	
 	double _timeStampEthercat;
+	InterThreadRO* _consumerInstance;
 
 
+	void start() {}
+	void iterationStart() {}
+	void iterationEnd() {}
 
 		enum VarName
 	{
@@ -75,10 +76,14 @@ public:
 	* @param xmlName Subject specific XML
 	* @param executionName execution XML for CEINMS-RT software configuration
 	*/
-	void init( std::string& executionName );
+	void init( const std::string& subjectName, const std::string& executionName, const PluginConfig& config );
 
 	void reset()
 	{
+	}
+	void kill(){}
+	virtual PLUGIN_STATUS_CODES pluginExecutionStatus(){
+		return PLUGIN_STATUS_CODES::OPERATION_NORMAL;
 	}
 
 	/**
@@ -107,7 +112,7 @@ public:
 
 	void stop();
 
-	void setDirectory(std::string outDirectory, std::string inDirectory = std::string())
+	void setDirectory(const std::string& outDirectory, const std::string& inDirectory = std::string())
 	{
 	}
 
@@ -121,69 +126,21 @@ public:
 
 	const std::map<std::string, double>& GetDataMapTorque();
 
-	void setMuscleName(const std::vector<std::string>& muscleNames)
-	{
-		this->_muscleNames = muscleNames;
-	}
-
-	void setDofName(const std::vector<std::string>& dofName)
-	{
-		this->_dofNames = dofName;
-	}
-
-	void setDofTorque(const std::vector<double>& dofTorque);
-
-	void setDofStiffness(const std::vector<double>& dofStiffness) {
-		for(int idx = 0; idx < dofStiffness.size(); idx++ ){
-			std::string& tag = this->_dofNames[idx];
-			this->_jointStiffness[tag] = dofStiffness[idx];
-		}
-	}
-
-	void setOutputTimeStamp(const double& timeStamp) {
-		this->_outputTimeStamp = timeStamp;
-	}
-
-
 
 	const std::vector<std::string>& GetDofName() { 
 		return this->_dofNames; 
 		}
 
+	void setDataSourcePointer(InterThreadRO* instance);
+	void setDataReadyNotification(PLUGIN_DATA_TYPE dataCode);
 
-	// Interface to provide an easy access method to collect data supplied by CEINMS
-	double getDofAngle(const std::string& dofName) const; //{ return this->_jointAngle.at(dofName);}
-	double getDofTorque(const std::string& dofName) const;// { return this->_jointTorqueFromExternalOrID.at(dofName);} // From ID or sensor
-	double getCEINMSDofTorque(const std::string& dofName) const;// { return this->_jointTorqueFromExternalOrID.at(dofName);} // From ID or sensor
-	double getDofStiffness(const std::string& dofName) const;// { return this->_jointStiffness.at(dofName);}
-	double getMuscleForce(const std::string& muscleName) const;// { return this->_muscleForce.at(muscleName);}
-	double getMuscleFiberLength(const std::string& muscleName) const;// { return this->_muscleFiberLength.at(muscleName);}
-	double getMuscleFiberVelocity(const std::string& muscleName) const;// { return this->_muscleFiberVelocity.at(muscleName);}
-	double getMuscleActivation(const std::string& muscleName) const;// { return this->_muscleActivation.at(muscleName);}
+	const double& getAngleTime();
+	const std::vector<std::string>& getAngleDofName();
+	const std::map<std::string, double>& getDataMapAngle();
 
-
-	void setMuscleForce(const std::vector<double>& muscleForce)  {
-		for(int idx = 0; idx < muscleForce.size(); idx++ ){
-			std::string& tag = this->_muscleNames[idx];
-			this->_muscleForce[tag] = muscleForce[idx];
-		}
-	}
-
-	void setMuscleFiberLength(const std::vector<double>& muscleFiberLength) {
-		for(int idx = 0; idx < muscleFiberLength.size(); idx++ ){
-			std::string& tag = this->_muscleNames[idx];
-			this->_muscleFiberLength[tag] = muscleFiberLength[idx];
-		}
-	}
-
-	void setMuscleFiberVelocity(const std::vector<double>& muscleFiberVelocity)  {
-		for(int idx = 0; idx < muscleFiberVelocity.size(); idx++ ){
-			std::string& tag = this->_muscleNames[idx];
-			this->_muscleFiberVelocity[tag] = muscleFiberVelocity[idx];
-		}
-	}
-
-	// Optimization Cost Functions
+	const double& getTorqueTime();
+	const std::vector<std::string>& getTorqueDofName();
+	const std::map<std::string, double>& getDataMapTorque();
 
 };
 

@@ -23,5 +23,6 @@ target_link_libraries("${PROJECT_NAME}"
 	xmlInput
 	XercesC::XercesC
 	Boost::boost
-	PluginHeritance
-	PluginCommon)
+	PluginInterface
+	PluginCommon
+	InterThreadRO)

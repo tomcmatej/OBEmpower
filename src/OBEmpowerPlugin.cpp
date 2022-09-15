@@ -7,6 +7,7 @@
 #include <map>
 #include <GetTime.h>
 #include <ExecutionXmlReader.h>
+#define NOMINMAX
 #include <algorithm>
 		
 
@@ -22,25 +23,10 @@ OBEmpowerPlugin::~OBEmpowerPlugin()
 {	
 }
 
-void OBEmpowerPlugin::init(std::string& executionFilename)
+void OBEmpowerPlugin::init(const std::string& subjectName, const std::string& executionName, const PluginConfig& config )
 {
-	ExecutionXmlReader executionCfg(executionFilename);
+	ExecutionXmlReader executionCfg(executionName);
 	initTcAds(atoi(executionCfg.getComsumerPort().c_str()));
-}
-
-const std::map<std::string, double>& OBEmpowerPlugin::GetDataMap()
-{
-	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-	_jointAngle = _dataAngleEthercat;
-
-	return this->_jointAngle;
-}
-
-const std::map<std::string, double>& OBEmpowerPlugin::GetDataMapTorque()
-{
-	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-	_jointTorqueFromExternalOrID = _dataTorqueEthercat;
-	return this->_jointTorqueFromExternalOrID;
 }
 
 void OBEmpowerPlugin::stop()
@@ -64,65 +50,6 @@ void OBEmpowerPlugin::stop()
 
 const double& OBEmpowerPlugin::getTime(){
 	return this->_timeStamp;
-}
-
-
-double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const { 
-	if(this->_jointAngle.find(dofName) == this->_jointAngle.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find angle data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
-		return 0;
-	}
-	return this->_jointAngle.at(dofName);
-}
-double OBEmpowerPlugin::getDofTorque(const std::string& dofName) const {
-	if(this->_jointTorqueFromExternalOrID.find(dofName + std::string("_moment")) == this->_jointTorqueFromExternalOrID.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
-		return 0;
-	}
-	std::string tagName = dofName + "_moment";
-	return this->_jointTorqueFromExternalOrID.at(tagName);
-} // From ID or sensor
-double OBEmpowerPlugin::getCEINMSDofTorque(const std::string& dofName) const { 
-	if(this->_jointTorqueFromCEINMS.find(dofName) == this->_jointTorqueFromCEINMS.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
-		return 0;
-	}
-	return this->_jointTorqueFromCEINMS.at(dofName);
-} // From CEINMS core output
-double OBEmpowerPlugin::getDofStiffness(const std::string& dofName) const { 
-	if(this->_jointStiffness.find(dofName) == this->_jointStiffness.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find stiffness data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
-		return 0;
-	}
-	return this->_jointStiffness.at(dofName);
-}
-double OBEmpowerPlugin::getMuscleForce(const std::string& muscleName) const { 
-	if(this->_muscleForce.find(muscleName) == this->_muscleForce.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find force data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
-		return 0;
-	}
-	return this->_muscleForce.at(muscleName);
-}
-double OBEmpowerPlugin::getMuscleFiberLength(const std::string& muscleName) const { 
-	if(this->_muscleFiberLength.find(muscleName) == this->_muscleFiberLength.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find fiber length data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
-		return 0;
-	}
-	return this->_muscleFiberLength.at(muscleName) * this->_subjectMuscleParameters.at(muscleName).at("optimalFiberLength");
-}
-double OBEmpowerPlugin::getMuscleFiberVelocity(const std::string& muscleName) const { 
-	if(this->_muscleFiberVelocity.find(muscleName) == this->_muscleFiberVelocity.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find fiber velocity data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
-		return 0;
-	}
-	return this->_muscleFiberVelocity.at(muscleName);
-}
-double OBEmpowerPlugin::getMuscleActivation(const std::string& muscleName) const { 
-	if(this->_muscleActivation.find(muscleName) == this->_muscleActivation.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find activation data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
-		return 0;
-	}
-	return this->_muscleActivation.at(muscleName);
 }
 
 
@@ -257,59 +184,87 @@ const double& OBEmpowerPlugin::GetAngleTimeStamp()
 	return _timeStamp;
 }
 
-void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
-	for(int idx = 0; idx < dofTorque.size(); idx++ ){
-		std::string& tag = this->_dofNames[idx];
-		this->_jointTorqueFromCEINMS[tag] = dofTorque[idx];
+void OBEmpowerPlugin::setDataSourcePointer(InterThreadRO* instance){
+	_consumerInstance = instance;
+}
+
+void OBEmpowerPlugin::setDataReadyNotification(PLUGIN_DATA_TYPE dataCode){
+	std::unique_lock<std::mutex> lock(this->_dataAccess);
+	switch(dataCode){
+		case PLUGIN_DATA_TYPE::EMG:
+			break;
+		case PLUGIN_DATA_TYPE::Angle:
+			break;
+		case PLUGIN_DATA_TYPE::Torque:
+			_jointTorqueFromExternalOrID = _consumerInstance->getExternalTorqueMap();
+			{	
+				float ankleTorqueSp = 0;
+				ankleTorqueSp = (std::min)((std::max)((float)this->_jointTorqueFromCEINMS["ankle_angle_l"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
+				_tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(ankleTorqueSp));
+			}
+			break;		
+		case PLUGIN_DATA_TYPE::XLD:
+			break;		
+		case PLUGIN_DATA_TYPE::Acceleration:
+			break;		
+		case PLUGIN_DATA_TYPE::Velocity:
+			break;		
+		case PLUGIN_DATA_TYPE::Position:
+			break;
+		default:
+			break;
 	}
+}
 
-	// static float ankleTorqueSp = 0;
-	float ankleTorqueSp = 0;
-	for (std::vector<std::string>::const_iterator it = _dofNames.begin(); it != _dofNames.end(); it++)
-	{
-		int64_t cpt = std::distance<std::vector<std::string>::const_iterator>(_dofNames.begin(), it);
-		if (*it == "ankle_angle_l")
-		{
-			// ankleTorqueSp = (float)dofTorque[cpt];
-		}
-		if (*it == "ankle_angle_r")
-		{			
-			// ankleTorqueSp = (float)dofTorque[cpt];
-		}
-	}
 
-	#undef max
-	#undef min
-	ankleTorqueSp = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_l"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
+const double& OBEmpowerPlugin::getAngleTime(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	return _timeStampEthercat;
+}
+const std::vector<std::string>& OBEmpowerPlugin::getAngleDofName(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	return _dofNames;
+}
+const std::map<std::string, double>& OBEmpowerPlugin::getDataMapAngle(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	_jointAngle = _dataAngleEthercat;
+	return _jointAngle;
+}
 
-	// ankleTorqueSp = (float)std::min(1, 9999);
-
-	
-	_tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(ankleTorqueSp));
-	// _tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(float));
+const double& OBEmpowerPlugin::getTorqueTime(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	return _timeStampEthercat;
+}
+const std::vector<std::string>& OBEmpowerPlugin::getTorqueDofName(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	return _dofNames;
+}
+const std::map<std::string, double>& OBEmpowerPlugin::getDataMapTorque(){
+	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
+	_jointTorqueFromExternalOrID = _dataTorqueEthercat;
+	return _jointTorqueFromExternalOrID;
 }
 
 
 #ifdef UNIX
-extern "C" AngleAndComsumerPlugin * create() {
+extern "C" void* create() {
+    return new OBEmpowerPlugin;
+}
+
+extern "C" void destroy(void* p) {
+    delete (OBEmpowerPlugin*)p;
+}
+
+#endif
+#ifdef WIN32
+extern "C" __declspec (dllexport) void* __cdecl create() {
 	return new OBEmpowerPlugin;
 }
 
-extern "C" void destroy(AngleAndComsumerPlugin * p) {
-	delete p;
+extern "C" __declspec (dllexport) void __cdecl destroy(void* p) {
+	delete (OBEmpowerPlugin*)p;
 }
 #endif
-
-#if defined(WIN32) && !defined(STATIC_UNIT_TESTS) // __declspec (dllexport) id important for dynamic loading
-extern "C" __declspec (dllexport) AngleAndComsumerPlugin * __cdecl create() {
-	return new OBEmpowerPlugin;
-}
-
-extern "C" __declspec (dllexport) void __cdecl destroy(AngleAndComsumerPlugin * p) {
-	delete p;
-}
-#endif
-
 
 
 
