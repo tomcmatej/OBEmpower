@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION "3.10")
-project("OBEmpowerPlugin")
+project("PluginOBEmpower")
 
 file(GLOB project_SRC
 	"src/*.hpp"
@@ -19,8 +19,8 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
 
 target_link_libraries("${PROJECT_NAME}"
 	AdsClient
-	XMLInterpreter
-	xmlInput
+	XMLExecutionInterpreter
+	# xmlInput
 	XercesC::XercesC
 	Boost::boost)
 

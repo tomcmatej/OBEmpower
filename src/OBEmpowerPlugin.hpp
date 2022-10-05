@@ -10,8 +10,8 @@
 #include <thread>
 #include <tcAdsClient.h>
 
-#define EMPOWER_MAX_TORQUE	10.0f	// Nm
-#define EMPOWER_MIN_TORQUE -10.0f	// Nm
+#define EMPOWER_MAX_TORQUE	30.0f	// Nm
+#define EMPOWER_MIN_TORQUE -30.0f	// Nm
 
 
 #if defined(_WIN32) && !defined(STATIC_UNIT_TESTS)
@@ -56,6 +56,9 @@ class OBEmpowerPlugin : public AngleAndComsumerPlugin
 	void initTcAds(int portno);
 	const double& GetAngleTimeStamp();
 
+
+	
+
 public:
 	/**
 	* Constructor
@@ -66,6 +69,10 @@ public:
 	* Destructor
 	*/
 	virtual ~OBEmpowerPlugin();
+
+	void setMuscleForcePassive(const std::vector<double>& muscleForcePassive){}
+	void setMuscleForceActive(const std::vector<double>& muscleForceActive){}
+	void setTendonStrain(const std::vector<double>& tendonStrain){}
 
 	/**
 	* Initialization method

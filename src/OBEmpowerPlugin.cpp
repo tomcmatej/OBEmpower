@@ -143,7 +143,7 @@ void OBEmpowerPlugin::initTcAds(int portno)
 	// std::string timeVar = "MAIN.Inputs.my_struct_emp.Empower_ankle_angle_ts";
 
 	std::string torqueVar = "MAIN.my_struct_emp.Empower_series_spring_torque";
-	std::string angleVar = "MAIN.my_struct_emp.Empower_ankle_angle";
+	std::string angleVar = "MAIN.filtAngle";
 	std::string torqueControlVar = "MAIN.out_struct.Empower_torque_sp";
 	std::string timeVar = "MAIN.my_struct_emp.Empower_ankle_angle_ts";
 
@@ -209,6 +209,7 @@ void OBEmpowerPlugin::ethercatThread()
 				ikDataLocal[*it] = ankleAngle;
 				// dataSaveID.push_back(dataID[0]);
 				idDataLocal[*it] = ankleTorque;
+				// _tcAdsClientObj
 
 			}
 			// else if (*it == "ankle_angle_l")
@@ -217,7 +218,7 @@ void OBEmpowerPlugin::ethercatThread()
 			// 	ikDataLocal[*it] = dataIK[1];
 			// 	// dataSaveID.push_back(dataID[1]);
 			// 	idDataLocal[*it] = dataID[1];
-			// 	_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &TcAdsVars[VarName::ankleTorque], numberOfVariables * sizeof(float));
+				// _tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &TcAdsVars[VarName::ankleTorque], numberOfVariables * sizeof(float));
 
 			// }
 			else
@@ -280,7 +281,7 @@ void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
 
 	#undef max
 	#undef min
-	ankleTorqueSp = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_l"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
+	ankleTorqueSp = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_r"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
 
 	// ankleTorqueSp = (float)std::min(1, 9999);
 
