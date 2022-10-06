@@ -206,7 +206,7 @@ void OBEmpowerPlugin::ethercatThread()
 			if (*it == "ankle_angle_r")
 			{
 				// dataSaveIK.push_back(dataIK[0]);
-				ikDataLocal[*it] = ankleAngle;
+				ikDataLocal[*it] = 0;
 				// dataSaveID.push_back(dataID[0]);
 				idDataLocal[*it] = ankleTorque;
 				// _tcAdsClientObj

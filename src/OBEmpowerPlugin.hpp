@@ -9,16 +9,21 @@
 #include <mutex>
 #include <thread>
 #include <tcAdsClient.h>
-#include <PluginCommon.hpp>
+// #include <PluginCommon.hpp>
 
 #define EMPOWER_MAX_TORQUE	30.0f	// Nm
 #define EMPOWER_MIN_TORQUE -30.0f	// Nm
 
 
+#ifdef WIN32
+	class __declspec(dllexport) OBEmpowerPlugin : public AngleAndComsumerPlugin {
+#endif
+#ifdef UNIX
+	class  OBEmpowerPlugin : public AngleAndComsumerPlugin {
+#endif
 
-
-class DYNLIBEXPORT OBEmpowerPlugin : public AngleAndComsumerPlugin
-{
+// class OBEmpowerPlugin : public AngleAndComsumerPlugin
+// {
 	// Private Variables:
 	std::vector<std::string> _muscleNames;
 	std::vector<std::string> _dofNames;
@@ -73,9 +78,9 @@ public:
 	*/
 	virtual ~OBEmpowerPlugin();
 
-	void setMuscleForcePassive(const std::vector<double>& muscleForcePassive){}
-	void setMuscleForceActive(const std::vector<double>& muscleForceActive){}
-	void setTendonStrain(const std::vector<double>& tendonStrain){}
+	// void setMuscleForcePassive(const std::vector<double>& muscleForcePassive){}
+	// void setMuscleForceActive(const std::vector<double>& muscleForceActive){}
+	// void setTendonStrain(const std::vector<double>& tendonStrain){}
 
 	/**
 	* Initialization method

@@ -15,6 +15,8 @@ target_include_directories("${PROJECT_NAME}" PRIVATE
 
 target_include_directories("${PROJECT_NAME}" PUBLIC
 	${PROJECT_SOURCE_DIR}/src
+	${PROJECT_SOURCE_DIR}/lib/Producers/PluginHeritanceTemplate
+
 )
 
 target_link_libraries("${PROJECT_NAME}"
@@ -23,5 +25,6 @@ target_link_libraries("${PROJECT_NAME}"
 	# xmlInput
 	XercesC::XercesC
 	Boost::boost
-	PluginHeritance
-	PluginCommon)
+	# PluginHeritance
+	# PluginCommon
+	)
