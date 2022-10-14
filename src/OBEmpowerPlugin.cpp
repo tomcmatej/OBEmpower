@@ -9,6 +9,7 @@
 #include <ExecutionXmlReader.h>
 #define NOMINMAX
 #include <algorithm>
+#include <mapTools.hpp>
 		
 
 
@@ -197,11 +198,6 @@ void OBEmpowerPlugin::setDataReadyNotification(PLUGIN_DATA_TYPE dataCode){
 			break;
 		case PLUGIN_DATA_TYPE::Torque:
 			_jointTorqueFromExternalOrID = _consumerInstance->getExternalTorqueMap();
-			{	
-				float ankleTorqueSp = 0;
-				ankleTorqueSp = (std::min)((std::max)((float)this->_jointTorqueFromCEINMS["ankle_angle_l"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
-				_tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(ankleTorqueSp));
-			}
 			break;		
 		case PLUGIN_DATA_TYPE::XLD:
 			break;		
@@ -243,6 +239,21 @@ const std::map<std::string, double>& OBEmpowerPlugin::getDataMapTorque(){
 	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
 	_jointTorqueFromExternalOrID = _dataTorqueEthercat;
 	return _jointTorqueFromExternalOrID;
+}
+
+void OBEmpowerPlugin::iterationEnd() {
+	auto modelTorques = _consumerInstance->getModelTorques();
+	auto dofNames = _consumerInstance->getDofNames();
+	if(dofNames.size() != modelTorques.size()){ // This should never happen
+		modelTorques.clear();
+		for(const auto& name : dofNames){
+			modelTorques.push_back(0);
+		}
+	}
+	_jointTorqueFromCEINMS = vectorToMap(dofNames, modelTorques);
+	float ankleTorqueSp = 0;
+	ankleTorqueSp = (std::min)((std::max)((float)this->_jointTorqueFromCEINMS["ankle_angle_r"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
+	_tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(ankleTorqueSp));
 }
 
 

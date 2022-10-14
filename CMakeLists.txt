@@ -25,4 +25,5 @@ target_link_libraries("${PROJECT_NAME}"
 	Boost::boost
 	PluginInterface
 	PluginCommon
-	InterThreadRO)
+	InterThreadRO
+	MapTools)

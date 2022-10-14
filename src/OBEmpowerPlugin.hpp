@@ -11,8 +11,8 @@
 #include <tcAdsClient.h>
 #include <PluginCommon.hpp>
 
-#define EMPOWER_MAX_TORQUE	10.0f	// Nm
-#define EMPOWER_MIN_TORQUE -10.0f	// Nm
+#define EMPOWER_MAX_TORQUE	30.0f	// Nm
+#define EMPOWER_MIN_TORQUE -30.0f	// Nm
 
 // Implemented to consume torques, to provide external torques and angles
 
@@ -40,7 +40,7 @@ class DYNLIBEXPORT OBEmpowerPlugin : public PluginInterface
 
 	void start() {}
 	void iterationStart() {}
-	void iterationEnd() {}
+	void iterationEnd();
 
 		enum VarName
 	{
