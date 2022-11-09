@@ -10,6 +10,7 @@
 #include <tcAdsClient.h>
 #include <PluginCommon.hpp>
 #include <OpenSimFileLogger.h>
+#include <ConstantRateFilter.hpp>
 
 #define EMPOWER_MAX_TORQUE	30.0f	// Nm
 #define EMPOWER_MIN_TORQUE -30.0f	// Nm
@@ -41,6 +42,8 @@ class DYNLIBEXPORT OBEmpowerPlugin : public PluginInterface
 	bool _record;
 
 	std::shared_ptr<OpenSimFileLogger<double>> _logger;
+
+	ConstantRateFilter<double> _angleFilter;
 
 
 	void start() {}

@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <mapTools.hpp>
 		
-
+#define AFILT_COEFF 1.0000,-1.4755,0.5869
+#define BFILT_COEFF 0.0279,0.0557,0.0279		// 6 Hz cutoff frequency, 100Hz update rate
+#define SAMPLING_FREQ	100
 
 #define ADS_PORT 851
 
@@ -29,13 +31,14 @@ OBEmpowerPlugin::~OBEmpowerPlugin()
 void OBEmpowerPlugin::init(const std::string& subjectName, const std::string& executionName, const PluginConfig& config )
 {
 	ExecutionXmlReader executionCfg(executionName);
+
+	std::vector<double> aFilter{AFILT_COEFF}, bFilter{BFILT_COEFF};
+	aFilter.erase(aFilter.begin());
+	// aFilter.pop_front();
+	_angleFilter.init(aFilter, bFilter, SAMPLING_FREQ, std::vector<double>(3));
+
 	initTcAds(atoi(executionCfg.getComsumerPort().c_str()));
 	_dofNames.push_back(DOF_NAME);
-	// if(_record){
-	// 	_logger = std::make_shared<OpenSimFileLogger<double>>(_outDirectory);
-	// 	_logger->addLog(Logger::IK);
-	// 	_logger->addLog(Logger::ID);
-	// }
 }
 
 
@@ -43,8 +46,6 @@ void OBEmpowerPlugin::stop()
 {
 	_threadStop = true;
 	_ethercatThread->join();
-	// if (_record)
-	// 	_logger->stop();
 	for (std::vector<unsigned long>::const_iterator it = _varNameVect.begin(); it != _varNameVect.end(); it++)
 		_tcAdsClientObj->releaseVariableHandle(*it);
 	_tcAdsClientObj->disconnect();
@@ -128,6 +129,8 @@ void OBEmpowerPlugin::ethercatThread()
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleAngle], &ankleAngle, sizeof(ankleAngle));
  		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &time, sizeof(time));
+
+		ankleAngle = (float)_angleFilter.filter((double)ankleAngle, timeLocal);
 
 		for (std::vector<std::string>::const_iterator it = this->_dofNames.begin(); it != this->_dofNames.end(); it++)
 		{
