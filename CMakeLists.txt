@@ -7,17 +7,17 @@ file(GLOB project_SRC
     "src/*.cpp"
 )
 
-add_library("${PROJECT_NAME}" SHARED ${project_SRC})
+add_library(${PROJECT_NAME} SHARED ${project_SRC})
 
-target_include_directories("${PROJECT_NAME}" PRIVATE
+target_include_directories(${PROJECT_NAME} PRIVATE
 	${CMAKE_SOURCE_DIR}/lib/Producers/DevicePlugin
 )
 
-target_include_directories("${PROJECT_NAME}" PUBLIC
+target_include_directories(${PROJECT_NAME} PUBLIC
 	${PROJECT_SOURCE_DIR}/src
 )
 
-target_link_libraries("${PROJECT_NAME}"
+target_link_libraries(${PROJECT_NAME}
 	AdsClient
 	XMLInterpreter
 	xmlInput
@@ -26,4 +26,5 @@ target_link_libraries("${PROJECT_NAME}"
 	PluginInterface
 	PluginCommon
 	InterThreadRO
-	MapTools)
+	MapTools
+	FileLogger)

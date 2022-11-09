@@ -1,5 +1,4 @@
-#ifndef OBEMPOWERPLUGIN_HPP_
-#define OBEMPOWERPLUGIN_HPP_
+#pragma once
 
 #define	_USE_MATH_DEFINES
 #include "OSUtils.hpp"
@@ -10,6 +9,7 @@
 #include <thread>
 #include <tcAdsClient.h>
 #include <PluginCommon.hpp>
+#include <OpenSimFileLogger.h>
 
 #define EMPOWER_MAX_TORQUE	30.0f	// Nm
 #define EMPOWER_MIN_TORQUE -30.0f	// Nm
@@ -36,6 +36,11 @@ class DYNLIBEXPORT OBEmpowerPlugin : public PluginInterface
 	double _timeStamp;	
 	double _timeStampEthercat;
 	InterThreadRO* _consumerInstance;
+	std::string _outDirectory;
+
+	bool _record;
+
+	std::shared_ptr<OpenSimFileLogger<double>> _logger;
 
 
 	void start() {}
@@ -114,6 +119,7 @@ public:
 
 	void setDirectory(const std::string& outDirectory, const std::string& inDirectory = std::string())
 	{
+		_outDirectory = outDirectory;
 	}
 
 	void setVerbose(int verbose)
@@ -122,6 +128,7 @@ public:
 
 	void setRecord(bool record)
 	{
+		_record = record;
 	}
 
 	const std::map<std::string, double>& GetDataMapTorque();
@@ -143,6 +150,3 @@ public:
 	const std::map<std::string, double>& getDataMapTorque();
 
 };
-
-
-#endif

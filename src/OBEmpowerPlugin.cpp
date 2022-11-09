@@ -15,6 +15,8 @@
 
 #define ADS_PORT 851
 
+#define DOF_NAME "ankle_angle_r"
+
 
 OBEmpowerPlugin::OBEmpowerPlugin()
 {
@@ -28,25 +30,24 @@ void OBEmpowerPlugin::init(const std::string& subjectName, const std::string& ex
 {
 	ExecutionXmlReader executionCfg(executionName);
 	initTcAds(atoi(executionCfg.getComsumerPort().c_str()));
+	_dofNames.push_back(DOF_NAME);
+	// if(_record){
+	// 	_logger = std::make_shared<OpenSimFileLogger<double>>(_outDirectory);
+	// 	_logger->addLog(Logger::IK);
+	// 	_logger->addLog(Logger::ID);
+	// }
 }
+
 
 void OBEmpowerPlugin::stop()
 {
-	// TODO: Kill optmization thread
-
-
 	_threadStop = true;
 	_ethercatThread->join();
-	// delete _ethercatThread;
-	// if (record_)
-	// {
-	// 	logger_->stop();
-	// 	delete logger_;
-	// }
+	// if (_record)
+	// 	_logger->stop();
 	for (std::vector<unsigned long>::const_iterator it = _varNameVect.begin(); it != _varNameVect.end(); it++)
-	_tcAdsClientObj->releaseVariableHandle(*it);
+		_tcAdsClientObj->releaseVariableHandle(*it);
 	_tcAdsClientObj->disconnect();
-	// delete _AdsClientObj;
 }
 
 const double& OBEmpowerPlugin::getTime(){
@@ -125,17 +126,17 @@ void OBEmpowerPlugin::ethercatThread()
 
 
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleAngle], &ankleAngle, sizeof(ankleAngle));
-		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
+ 		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &time, sizeof(time));
 
 		for (std::vector<std::string>::const_iterator it = this->_dofNames.begin(); it != this->_dofNames.end(); it++)
 		{
 
-			if (*it == "ankle_angle_r")
+			if (*it == DOF_NAME)
 			{
-				// dataSaveIK.push_back(dataIK[0]);
+				dataSaveIK.push_back(ankleAngle);
 				ikDataLocal[*it] = ankleAngle;
-				// dataSaveID.push_back(dataID[0]);
+				dataSaveID.push_back(ankleTorque);
 				idDataLocal[*it] = ankleTorque;
 
 			}
@@ -166,15 +167,11 @@ void OBEmpowerPlugin::ethercatThread()
 		_timeStampEthercat = timeLocal;
 		}
 
-		// if (record_)
+		// if (_record)
 		// {
-
-		// 	logger_->log(Logger::IK, timeLocal, dataSaveIK);
-		// 	logger_->log(Logger::ID, timeLocal, dataSaveID);
-
-		// 	logger_->log(Logger::RandomSignal, timeLocal, randSignal);
+		// 	_logger->log(Logger::IK, timeLocal, dataSaveIK);
+		// 	_logger->log(Logger::ID, timeLocal, dataSaveID);
 		// }
-
 	}
 }
 
@@ -187,6 +184,7 @@ const double& OBEmpowerPlugin::GetAngleTimeStamp()
 
 void OBEmpowerPlugin::setDataSourcePointer(InterThreadRO* instance){
 	_consumerInstance = instance;
+	// _dofNames = instance->getDofNames();
 }
 
 void OBEmpowerPlugin::setDataReadyNotification(PLUGIN_DATA_TYPE dataCode){
