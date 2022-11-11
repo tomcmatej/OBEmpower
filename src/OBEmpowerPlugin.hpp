@@ -11,6 +11,7 @@
 #include <PluginCommon.hpp>
 #include <OpenSimFileLogger.h>
 #include <ConstantRateFilter.hpp>
+#include <deque>
 
 #define EMPOWER_MAX_TORQUE	30.0f	// Nm
 #define EMPOWER_MIN_TORQUE -30.0f	// Nm
@@ -43,7 +44,12 @@ class DYNLIBEXPORT OBEmpowerPlugin : public PluginInterface
 
 	std::shared_ptr<OpenSimFileLogger<double>> _logger;
 
-	ConstantRateFilter<double> _angleFilter;
+	double _ankleAngleOld;
+
+	std::deque<double> _angleLog;
+
+	// ConstantRateFilter<double> _angleFilter;
+	FilterKin::Filter<double> _angleFilter;
 
 
 	void start() {}

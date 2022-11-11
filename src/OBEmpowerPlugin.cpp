@@ -11,12 +11,19 @@
 #include <algorithm>
 #include <mapTools.hpp>
 		
-#define AFILT_COEFF 1.0000,-1.4755,0.5869
-#define BFILT_COEFF 0.0279,0.0557,0.0279		// 6 Hz cutoff frequency, 100Hz update rate
+// #define AFILT_COEFF 1.0000,-1.4755,0.5869
+// #define BFILT_COEFF 0.0279,0.0557,0.0279		// 6 Hz cutoff frequency, 100Hz update rate
+
+// #define AFILT_COEFF 1.0000,-1.7640,0.7890
+// #define BFILT_COEFF 0.0063,0.0125,0.0063		// 12 Hz cutoff frequency, 450Hz update rate
+
+#define AFILT_COEFF 1.0000,-1.9408,0.9425
+#define BFILT_COEFF 0.0004260,0.0008519,0.0004260	// 3 Hz cutoff frequency, 450Hz update rate
+
 #define SAMPLING_FREQ	100
 
 #define ADS_PORT 851
-
+#define NO_SAMPLES_FILTER 10
 #define DOF_NAME "ankle_angle_r"
 
 
@@ -35,10 +42,12 @@ void OBEmpowerPlugin::init(const std::string& subjectName, const std::string& ex
 	std::vector<double> aFilter{AFILT_COEFF}, bFilter{BFILT_COEFF};
 	aFilter.erase(aFilter.begin());
 	// aFilter.pop_front();
-	_angleFilter.init(aFilter, bFilter, SAMPLING_FREQ, std::vector<double>(3));
-
+	// _angleFilter.init(aFilter, bFilter, SAMPLING_FREQ, std::vector<double>(3));
+	_angleFilter.init(aFilter, bFilter, std::vector<double>(3));
+    _ankleAngleOld=0; 
 	initTcAds(atoi(executionCfg.getComsumerPort().c_str()));
 	_dofNames.push_back(DOF_NAME);
+	_angleLog = std::deque<double>(NO_SAMPLES_FILTER);
 }
 
 
@@ -73,7 +82,8 @@ void OBEmpowerPlugin::initTcAds(int portno)
 	// std::string timeVar = "MAIN.Inputs.my_struct_emp.Empower_ankle_angle_ts";
 
 	std::string torqueVar = "MAIN.my_struct_emp.Empower_series_spring_torque";
-	std::string angleVar = "MAIN.my_struct_emp.Empower_ankle_angle";
+	// std::string angleVar = "MAIN.my_struct_emp.Empower_ankle_angle";
+	std::string angleVar = "MAIN.filtAngle";
 	std::string torqueControlVar = "MAIN.out_struct.Empower_torque_sp";
 	std::string timeVar = "MAIN.my_struct_emp.Empower_ankle_angle_ts";
 
@@ -116,7 +126,8 @@ void OBEmpowerPlugin::ethercatThread()
 
 		int length = 1; //Lankle, Rankle
 		unsigned int numberOfVariables = VarName::LAST;
-		float ankleAngle = 0, ankleTorque = 0;
+		float ankleTorque = 0;
+		double ankleAngle = 0;
 		long unsigned int time = 0;
 
 		std::vector<double> dataIK, dataSaveIK;
@@ -124,13 +135,14 @@ void OBEmpowerPlugin::ethercatThread()
 
 		timeLocal = rtb::getTime();
 
-
-
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleAngle], &ankleAngle, sizeof(ankleAngle));
  		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &time, sizeof(time));
 
-		ankleAngle = (float)_angleFilter.filter((double)ankleAngle, timeLocal);
+		if(ankleAngle == 0 && _ankleAngleOld !=0)
+			ankleAngle = _ankleAngleOld;
+
+		_ankleAngleOld = ankleAngle;
 
 		for (std::vector<std::string>::const_iterator it = this->_dofNames.begin(); it != this->_dofNames.end(); it++)
 		{
@@ -169,12 +181,6 @@ void OBEmpowerPlugin::ethercatThread()
 		std::unique_lock<std::mutex> lock(this->_mtxTime);
 		_timeStampEthercat = timeLocal;
 		}
-
-		// if (_record)
-		// {
-		// 	_logger->log(Logger::IK, timeLocal, dataSaveIK);
-		// 	_logger->log(Logger::ID, timeLocal, dataSaveID);
-		// }
 	}
 }
 
@@ -223,8 +229,24 @@ const std::vector<std::string>& OBEmpowerPlugin::getAngleDofName(){
 	return _dofNames;
 }
 const std::map<std::string, double>& OBEmpowerPlugin::getDataMapAngle(){
+	double twinCATAngle = 0;
+	{
 	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-	_jointAngle = _dataAngleEthercat;
+	twinCATAngle = _dataAngleEthercat.at(DOF_NAME);
+	// _jointAngle = _dataAngleEthercat;
+	// _angleLog.push_back(_dataAngleEthercat.at(DOF_NAME));
+	}
+	double ankleAngle = _angleFilter.filter((double)twinCATAngle);
+
+	// _angleLog.pop_front();
+	
+	// double ankleAngle = 0;
+	// for(auto angle : _angleLog)
+	// 	ankleAngle += angle;
+
+	// ankleAngle = ankleAngle / NO_SAMPLES_FILTER;
+
+	_jointAngle[DOF_NAME] = ankleAngle;
 	return _jointAngle;
 }
 

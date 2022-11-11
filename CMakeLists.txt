@@ -19,8 +19,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 target_link_libraries(${PROJECT_NAME}
 	AdsClient
-	XMLInterpreter
-	xmlInput
 	XercesC::XercesC
 	Boost::boost
 	PluginInterface
@@ -28,7 +26,8 @@ target_link_libraries(${PROJECT_NAME}
 	InterThreadRO
 	MapTools
 	FileLogger
-	Filter)
+	Filter
+	XMLExecutionInterpreter)
 
 
 # add_library(ConstantRateFilter 
