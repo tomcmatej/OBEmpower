@@ -137,7 +137,7 @@ void OBEmpowerPlugin::ethercatThread()
 
 		_tcAdsClientObj->read(_varNameVect[VarName::ankleAngle], &ankleAngle, sizeof(ankleAngle));
  		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
-		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &time, sizeof(time));
+		_tcAdsClientObj->read(_varNameVect[VarName::time], &time, sizeof(time));
 
 		if(ankleAngle == 0 && _ankleAngleOld !=0)
 			ankleAngle = _ankleAngleOld;
@@ -151,8 +151,8 @@ void OBEmpowerPlugin::ethercatThread()
 			{
 				dataSaveIK.push_back(ankleAngle);
 				ikDataLocal[*it] = ankleAngle;
-				dataSaveID.push_back(ankleTorque);
-				idDataLocal[*it] = ankleTorque;
+				dataSaveID.push_back(-ankleTorque);
+				idDataLocal[*it + "_moment"] = -ankleTorque;
 
 			}
 			// else if (*it == "ankle_angle_l")
@@ -168,7 +168,7 @@ void OBEmpowerPlugin::ethercatThread()
 			{
 				ikDataLocal[*it] = 0;
 				dataSaveIK.push_back(0);
-				idDataLocal[*it] = 0;
+				idDataLocal[*it + "_moment"] = 0;
 				dataSaveID.push_back(0);
 			}
 		}

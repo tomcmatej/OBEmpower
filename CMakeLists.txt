@@ -27,7 +27,10 @@ target_link_libraries(${PROJECT_NAME}
 	MapTools
 	FileLogger
 	Filter
-	XMLExecutionInterpreter)
+	# XMLExecutionInterpreter
+	)
+
+
 
 
 # add_library(ConstantRateFilter 
