@@ -26,7 +26,7 @@ target_link_libraries(${PROJECT_NAME}
 	InterThreadRO
 	MapTools
 	FileLogger
-	Filter
+	#Filter
 	# XMLExecutionInterpreter
 	)
 
