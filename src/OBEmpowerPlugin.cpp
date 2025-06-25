@@ -1,260 +1,246 @@
 #include "OBEmpowerPlugin.hpp"
-#include <boost/foreach.hpp>
+#include <boost/foreach.hpp> // Still used in some loops, could be replaced with C++11 range-based for
 #include <mutex>
 #include <thread>
 #include <cmath>
 #include <iostream>
 #include <map>
-#include <GetTime.h>
-#include <ExecutionXmlReader.h>
+#include <GetTime.h> // Custom time utility
+#include <ExecutionXmlReader.h> // For reading CEINMS configuration
 #include <algorithm>
-		
+#include <stdexcept> // For std::runtime_error
+#include <unistd.h>  // For close() on Unix
+#include <cstring>   // For memset, memcpy
+
+// Removed ADS_PORT
 
 
-#define ADS_PORT 851
-
-
-OBEmpowerPlugin::OBEmpowerPlugin()
+OBEmpowerPlugin::OBEmpowerPlugin() : _udpSocketFd(-1) // Initialize socket FD to invalid state
 {
 }
 
 OBEmpowerPlugin::~OBEmpowerPlugin()
-{	
+{
+    // Destructor doesn't do much here; `stop()` handles thread join and socket close
 }
 
 void OBEmpowerPlugin::init(std::string& executionFilename)
 {
 	ExecutionXmlReader executionCfg(executionFilename);
-	initTcAds(atoi(executionCfg.getComsumerPort().c_str()));
+    // The CEINMS XML might provide a port for an EMG plugin, but we'll use our own
+    // defined UDP ports for OSLv2 communication.
+    // If you need CEINMS to configure the ports, you'd add methods to ExecutionXmlReader
+    // to parse custom UDP port settings from the XML.
+	initUdp(OSLV2_UDP_RECV_PORT, OSLV2_IP_ADDRESS, OSLV2_UDP_SEND_PORT);
 }
 
 const std::map<std::string, double>& OBEmpowerPlugin::GetDataMap()
 {
-	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-	_jointAngle = _dataAngleEthercat;
-
+	std::unique_lock<std::mutex> lock(this->_mtxUdpData); // Lock the UDP data mutex
+	_jointAngle = _dataAngleUdp; // Copy UDP received angle data
 	return this->_jointAngle;
 }
 
 const std::map<std::string, double>& OBEmpowerPlugin::GetDataMapTorque()
 {
-	std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-	_jointTorqueFromExternalOrID = _dataTorqueEthercat;
+	std::unique_lock<std::mutex> lock(this->_mtxUdpData); // Lock the UDP data mutex
+	_jointTorqueFromExternalOrID = _dataTorqueUdp; // Copy UDP received torque data
 	return this->_jointTorqueFromExternalOrID;
 }
 
 void OBEmpowerPlugin::stop()
 {
-	// TODO: Kill optmization thread
+	_threadStop = true; // Signal the UDP communication thread to stop
 
-
-	_threadStop = true;
-	_ethercatThread->join();
-	// delete _ethercatThread;
-	// if (record_)
-	// {
-	// 	logger_->stop();
-	// 	delete logger_;
-	// }
-	for (std::vector<unsigned long>::const_iterator it = _varNameVect.begin(); it != _varNameVect.end(); it++)
-	_tcAdsClientObj->releaseVariableHandle(*it);
-	_tcAdsClientObj->disconnect();
-	// delete _AdsClientObj;
+    // Ensure the thread exists before trying to join it
+    if (_udpCommThread && _udpCommThread->joinable()) {
+	    _udpCommThread->join(); // Wait for the UDP thread to finish
+    }
+	
+    // Close the UDP socket
+    if (_udpSocketFd != -1) {
+        close(_udpSocketFd); // Unix-specific socket close
+        _udpSocketFd = -1; // Mark as closed
+    }
 }
 
 const double& OBEmpowerPlugin::getTime(){
 	return this->_timeStamp;
 }
 
-
-double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const { 
-	if(this->_jointAngle.find(dofName) == this->_jointAngle.end()){ // Requested tag not found
+// Getters remain largely the same, just the source of data changes upstream
+double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const { 
+	if(this->_jointAngle.find(dofName) == this->_jointAngle.end()){
 		std::cout << "Warning: Cannot find angle data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_jointAngle.at(dofName);
 }
 double OBEmpowerPlugin::getDofTorque(const std::string& dofName) const {
-	if(this->_jointTorqueFromExternalOrID.find(dofName + std::string("_moment")) == this->_jointTorqueFromExternalOrID.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+	if(this->_jointTorqueFromExternalOrID.find(dofName) == this->_jointTorqueFromExternalOrID.end()){ // Note: Original had "_moment" suffix, removed for simplicity with OSLv2
+		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
 		return 0;
 	}
-	std::string tagName = dofName + "_moment";
-	return this->_jointTorqueFromExternalOrID.at(tagName);
-} // From ID or sensor
-double OBEmpowerPlugin::getCEINMSDofTorque(const std::string& dofName) const { 
-	if(this->_jointTorqueFromCEINMS.find(dofName) == this->_jointTorqueFromCEINMS.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+	// std::string tagName = dofName + "_moment"; // Removed suffix assumption
+	return this->_jointTorqueFromExternalOrID.at(dofName); // Use raw dofName
+}
+double OBEmpowerPlugin::getCEINMSDofTorque(const std::string& dofName) const { 
+	if(this->_jointTorqueFromCEINMS.find(dofName) == this->_jointTorqueFromCEINMS.end()){
+		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
 		return 0;
 	}
 	return this->_jointTorqueFromCEINMS.at(dofName);
-} // From CEINMS core output
-double OBEmpowerPlugin::getDofStiffness(const std::string& dofName) const { 
-	if(this->_jointStiffness.find(dofName) == this->_jointStiffness.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find stiffness data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+}
+double OBEmpowerPlugin::getDofStiffness(const std::string& dofName) const { 
+	if(this->_jointStiffness.find(dofName) == this->_jointStiffness.end()){
+		std::cout << "Warning: Cannot find stiffness data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
 		return 0;
 	}
 	return this->_jointStiffness.at(dofName);
 }
-double OBEmpowerPlugin::getMuscleForce(const std::string& muscleName) const { 
-	if(this->_muscleForce.find(muscleName) == this->_muscleForce.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find force data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
+double OBEmpowerPlugin::getMuscleForce(const std::string& muscleName) const { 
+	if(this->_muscleForce.find(muscleName) == this->_muscleForce.end()){
+		std::cout << "Warning: Cannot find force data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
 		return 0;
 	}
 	return this->_muscleForce.at(muscleName);
 }
-double OBEmpowerPlugin::getMuscleFiberLength(const std::string& muscleName) const { 
-	if(this->_muscleFiberLength.find(muscleName) == this->_muscleFiberLength.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find fiber length data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
+double OBEmpowerPlugin::getMuscleFiberLength(const std::string& muscleName) const { 
+	if(this->_muscleFiberLength.find(muscleName) == this->_muscleFiberLength.end()){
+		std::cout << "Warning: Cannot find fiber length data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
 		return 0;
 	}
+    // Assuming 'optimalFiberLength' is a scaling factor for normalized fiber length
 	return this->_muscleFiberLength.at(muscleName) * this->_subjectMuscleParameters.at(muscleName).at("optimalFiberLength");
 }
-double OBEmpowerPlugin::getMuscleFiberVelocity(const std::string& muscleName) const { 
-	if(this->_muscleFiberVelocity.find(muscleName) == this->_muscleFiberVelocity.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find fiber velocity data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
+double OBEmpowerPlugin::getMuscleFiberVelocity(const std::string& muscleName) const { 
+	if(this->_muscleFiberVelocity.find(muscleName) == this->_muscleFiberVelocity.end()){
+		std::cout << "Warning: Cannot find fiber velocity data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_muscleFiberVelocity.at(muscleName);
 }
-double OBEmpowerPlugin::getMuscleActivation(const std::string& muscleName) const { 
-	if(this->_muscleActivation.find(muscleName) == this->_muscleActivation.end()){ // Requested tag not found
-		std::cout << "Warning: Cannot find activation data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
+double OBEmpowerPlugin::getMuscleActivation(const std::string& muscleName) const { 
+	if(this->_muscleActivation.find(muscleName) == this->_muscleActivation.end()){
+		std::cout << "Warning: Cannot find activation data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_muscleActivation.at(muscleName);
 }
 
 
-void OBEmpowerPlugin::initTcAds(int portno)
+void OBEmpowerPlugin::initUdp(int recvPort, const std::string& sendIp, int sendPort)
 {
+    // 1. Create UDP Socket
+    _udpSocketFd = socket(AF_INET, SOCK_DGRAM, 0); // AF_INET for IPv4, SOCK_DGRAM for UDP
+    if (_udpSocketFd < 0) {
+        throw std::runtime_error("Failed to create UDP socket.");
+    }
+    std::cout << "UDP Socket created with FD: " << _udpSocketFd << std::endl;
 
-	_tcAdsClientObj = std::make_shared<tcAdsClient>(ADS_PORT);	// XML only allows for one port, and the EMG plugin port is different than the one to be used for the Empower.
-															// This will be hardcoded for now.
+    // Optional: Allow reuse of address/port (useful for quick restarts)
+    int reuse = 1;
+    if (setsockopt(_udpSocketFd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        std::cerr << "Warning: setsockopt(SO_REUSEADDR) failed." << std::endl;
+    }
+    // SO_REUSEPORT is also common on Linux
+    if (setsockopt(_udpSocketFd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) < 0) {
+        std::cerr << "Warning: setsockopt(SO_REUSEPORT) failed." << std::endl;
+    }
+
+
+    // 2. Configure plugin's receive address (where OSLv2 will send data)
+    memset(&_pluginRecvAddr, 0, sizeof(_pluginRecvAddr)); // Clear the structure
+    _pluginRecvAddr.sin_family = AF_INET; // IPv4
+    _pluginRecvAddr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all available interfaces (0.0.0.0)
+    _pluginRecvAddr.sin_port = htons(recvPort); // Port for receiving (e.g., 12345)
+
+    // 3. Bind the socket to the receive address
+    if (bind(_udpSocketFd, (const struct sockaddr *)&_pluginRecvAddr, sizeof(_pluginRecvAddr)) < 0) {
+        close(_udpSocketFd);
+        throw std::runtime_error("Failed to bind UDP socket to receive port " + std::to_string(recvPort));
+    }
+    std::cout << "UDP Socket bound to port: " << recvPort << std::endl;
+
+    // 4. Configure OSLv2's send address (where we send commands to OSLv2)
+    memset(&_oslv2SendAddr, 0, sizeof(_oslv2SendAddr)); // Clear the structure
+    _oslv2SendAddr.sin_family = AF_INET; // IPv4
+    _oslv2SendAddr.sin_port = htons(sendPort); // Port for sending (e.g., 12346)
+    if (inet_pton(AF_INET, sendIp.c_str(), &_oslv2SendAddr.sin_addr) <= 0) { // Convert IP string to binary
+        close(_udpSocketFd);
+        throw std::runtime_error("Invalid IP address: " + sendIp);
+    }
+    std::cout << "OSLv2 Send Address configured to " << sendIp << ":" << sendPort << std::endl;
+
+
 	this->_threadStop = false;
-	// std::string torqueVar = "MAIN.my_struct_emp.Inputs.Empower_series_spring_torque";
-	// std::string angleVar = "MAIN.my_struct_emp.Inputs.Empower_ankle_angle";
-	// std::string torqueControlVar = "MAIN.my_struct_emp.Outputs.Empower_torque_sp";
-	// std::string timeVar = "MAIN.my_struct_emp.Inputs.Empower_ankle_angle_ts";
-
-	// std::string torqueVar = "MAIN.Inputs.my_struct_emp.Empower_series_spring_torque";
-	// std::string angleVar = "MAIN.Inputs.my_struct_emp.Empower_ankle_angle";
-	// std::string torqueControlVar = "MAIN.Outputs.my_struct_emp.Empower_torque_sp";
-	// std::string timeVar = "MAIN.Inputs.my_struct_emp.Empower_ankle_angle_ts";
-
-	std::string torqueVar = "MAIN.my_struct_emp.Empower_series_spring_torque";
-	std::string angleVar = "MAIN.filtAngle";
-	std::string torqueControlVar = "MAIN.out_struct.Empower_torque_sp";
-	std::string timeVar = "MAIN.my_struct_emp.Empower_ankle_angle_ts";
-
-	// std::string torqueVar = "Inputs.MAIN.my_struct_emp.Empower_series_spring_torque";
-	// std::string angleVar = "Inputs.MAIN.my_struct_emp.Empower_ankle_angle";
-	// std::string torqueControlVar = "Outputs.MAIN.my_struct_emp.Empower_torque_sp";
-	// std::string timeVar = "Inputs.MAIN.my_struct_emp.Empower_ankle_angle_ts";
-
-	// std::string torqueVar = "NucleoPLC.MAIN.my_struct_emp.Inputs.Empower_series_spring_torque";
-	// std::string angleVar = "NucleoPLC.MAIN.my_struct_emp.Inputs.Empower_ankle_angle";
-	// std::string torqueControlVar = "NucleoPLC.MAIN.my_struct_emp.Outputs.Empower_torque_sp";
-	// std::string timeVar = "NucleoPLC.MAIN.my_struct_emp.Inputs.Empower_ankle_angle_ts";
-
-
-	_varNameVect.resize(VarName::LAST);
-
-	_varNameVect[VarName::ankleTorque] = _tcAdsClientObj->getVariableHandle(&torqueVar[0], (int)torqueVar.size());
-	_varNameVect[VarName::ankleAngle] = _tcAdsClientObj->getVariableHandle(&angleVar[0], (int)angleVar.size());
-	_varNameVect[VarName::torqueControl] = _tcAdsClientObj->getVariableHandle(&torqueControlVar[0], (int)torqueControlVar.size());
-	_varNameVect[VarName::time] = _tcAdsClientObj->getVariableHandle(&timeVar[0], (int)timeVar.size());
-	
-
-	if (_varNameVect[VarName::ankleTorque] == -1 || _varNameVect[VarName::ankleAngle] == -1 || _varNameVect[VarName::torqueControl] == -1 || _varNameVect[VarName::torqueControl] == -1)
-		throw std::runtime_error( "One or more TcAds variables not found" );
-
 	_timeStamp = rtb::getTime();
 
-	_ethercatThread = std::make_shared<std::thread>(&OBEmpowerPlugin::ethercatThread, this);
+    // Start the UDP communication thread
+	_udpCommThread = std::make_shared<std::thread>(&OBEmpowerPlugin::udpCommThread, this);
 }
 
 
-void OBEmpowerPlugin::ethercatThread()
+void OBEmpowerPlugin::udpCommThread()
 {
 	double timeLocal;
+	// Use local variables to store data before copying to shared members to minimize lock time
 	std::map<std::string, double> ikDataLocal;
 	std::map<std::string, double> idDataLocal;
 
+    // Define a buffer for receiving UDP packets
+    Oslv2DataPacket recvPacket; // Use the defined struct for direct reception
+    socklen_t addrLen = sizeof(struct sockaddr_in); // Size of address structure for recvfrom
+
 	while (!_threadStop)
 	{
-
-		int length = 1; //Lankle, Rankle
-		unsigned int numberOfVariables = VarName::LAST;
-		float ankleAngle = 0, ankleTorque = 0;
-		long unsigned int time = 0;
-
-		std::vector<double> dataIK, dataSaveIK;
-		std::vector<double> dataID, dataSaveID;
-
 		timeLocal = rtb::getTime();
 
+        // Try to receive a UDP packet. Blocking call, will wait here until a packet arrives
+        // or the thread is signaled to stop by some mechanism (e.g., non-blocking socket with timeout).
+        // For simplicity, we'll keep it blocking here. A timeout could be added for responsiveness.
+        ssize_t bytes_received = recvfrom(_udpSocketFd, &recvPacket, sizeof(recvPacket), 0,
+                                          NULL, NULL); // No need for sender address for now
 
+        if (bytes_received > 0) {
+            if (bytes_received == sizeof(Oslv2DataPacket)) {
+                // Packet received and is of the expected size.
+                // Assuming OSLv2 sends only ankle data for now.
+                // You might need to check dofNames to map it correctly.
+                ikDataLocal["ankle_angle_r"] = recvPacket.ankleAngle_rad;
+                idDataLocal["ankle_angle_r"] = recvPacket.ankleTorque_Nm;
 
-		_tcAdsClientObj->read(_varNameVect[VarName::ankleAngle], &ankleAngle, sizeof(ankleAngle));
-		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &ankleTorque, sizeof(ankleTorque));
-		_tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &time, sizeof(time));
+                // Update shared data under lock
+                {
+                    std::unique_lock<std::mutex> lock(this->_mtxUdpData);
+                    _dataAngleUdp = ikDataLocal;
+                    _dataTorqueUdp = idDataLocal;
+                }
+                {
+                    std::unique_lock<std::mutex> lock(this->_mtxTime);
+                    _timeStampUdp = timeLocal;
+                }
 
-		for (std::vector<std::string>::const_iterator it = this->_dofNames.begin(); it != this->_dofNames.end(); it++)
-		{
-
-			if (*it == "ankle_angle_r")
-			{
-				// dataSaveIK.push_back(dataIK[0]);
-				ikDataLocal[*it] = 0;
-				// dataSaveID.push_back(dataID[0]);
-				idDataLocal[*it] = ankleTorque;
-				// _tcAdsClientObj
-
-			}
-			// else if (*it == "ankle_angle_l")
-			// {
-			// 	// dataSaveIK.push_back(dataIK[1]);
-			// 	ikDataLocal[*it] = dataIK[1];
-			// 	// dataSaveID.push_back(dataID[1]);
-			// 	idDataLocal[*it] = dataID[1];
-				// _tcAdsClientObj->read(_varNameVect[VarName::ankleTorque], &TcAdsVars[VarName::ankleTorque], numberOfVariables * sizeof(float));
-
-			// }
-			else
-			{
-				ikDataLocal[*it] = 0;
-				dataSaveIK.push_back(0);
-				idDataLocal[*it] = 0;
-				dataSaveID.push_back(0);
-			}
-		}
-		{
-		std::unique_lock<std::mutex> lock(this->_mtxEthercat);
-		_dataAngleEthercat = ikDataLocal;
-		_dataTorqueEthercat = idDataLocal;
-		}
-		{
-		std::unique_lock<std::mutex> lock(this->_mtxTime);
-		_timeStampEthercat = timeLocal;
-		}
-
-		// if (record_)
-		// {
-
-		// 	logger_->log(Logger::IK, timeLocal, dataSaveIK);
-		// 	logger_->log(Logger::ID, timeLocal, dataSaveID);
-
-		// 	logger_->log(Logger::RandomSignal, timeLocal, randSignal);
-		// }
-
+            } else {
+                std::cerr << "Warning: Received UDP packet of unexpected size: " << bytes_received
+                          << " bytes. Expected: " << sizeof(Oslv2DataPacket) << std::endl;
+            }
+        } else if (bytes_received < 0) {
+            // An error occurred during recvfrom.
+            // Note: If the socket is closed while recvfrom is blocking, it might return -1.
+            if (!_threadStop) { // Only report error if not in shutdown sequence
+                 std::cerr << "UDP recvfrom error: " << strerror(errno) << std::endl;
+            }
+        }
+        // If bytes_received is 0, it means the peer has performed an orderly shutdown (not common for UDP)
+        // or nothing was received (if non-blocking).
 	}
 }
 
 const double& OBEmpowerPlugin::GetAngleTimeStamp()
 {
 	std::unique_lock<std::mutex> lock(this->_mtxTime);
-	_timeStamp = _timeStampEthercat;
+	_timeStamp = _timeStampUdp;
 	return _timeStamp;
 }
 
@@ -264,33 +250,29 @@ void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
 		this->_jointTorqueFromCEINMS[tag] = dofTorque[idx];
 	}
 
-	// static float ankleTorqueSp = 0;
-	float ankleTorqueSp = 0;
-	for (std::vector<std::string>::const_iterator it = _dofNames.begin(); it != _dofNames.end(); it++)
-	{
-		int64_t cpt = std::distance<std::vector<std::string>::const_iterator>(_dofNames.begin(), it);
-		if (*it == "ankle_angle_l")
-		{
-			// ankleTorqueSp = (float)dofTorque[cpt];
-		}
-		if (*it == "ankle_angle_r")
-		{			
-			// ankleTorqueSp = (float)dofTorque[cpt];
-		}
-	}
-
 	#undef max
 	#undef min
-	ankleTorqueSp = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_r"],EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
 
-	// ankleTorqueSp = (float)std::min(1, 9999);
+    // Prepare the command packet
+    Oslv2CommandPacket sendPacket;
+    // Clamp the ankle torque setpoint to be within defined limits
+	sendPacket.torqueSetpoint_Nm = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_r"], EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
 
-	
-	_tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(ankleTorqueSp));
-	// _tcAdsClientObj->write(_varNameVect[VarName::torqueControl], &ankleTorqueSp, sizeof(float));
+    // Send the UDP packet to OSLv2
+    // sendto returns the number of bytes sent, or -1 on error
+    ssize_t bytes_sent = sendto(_udpSocketFd, &sendPacket, sizeof(sendPacket), 0,
+                                (const struct sockaddr *)&_oslv2SendAddr, sizeof(_oslv2SendAddr));
+
+    if (bytes_sent < 0) {
+        std::cerr << "UDP sendto error: " << strerror(errno) << std::endl;
+    } else if (bytes_sent != sizeof(sendPacket)) {
+        std::cerr << "Warning: Sent " << bytes_sent << " bytes, but expected "
+                  << sizeof(sendPacket) << " bytes for torque command." << std::endl;
+    }
 }
 
 
+// Factory functions (remain unchanged)
 #ifdef UNIX
 extern "C" AngleAndComsumerPlugin * create() {
 	return new OBEmpowerPlugin;
@@ -301,7 +283,7 @@ extern "C" void destroy(AngleAndComsumerPlugin * p) {
 }
 #endif
 
-#if defined(WIN32) && !defined(STATIC_UNIT_TESTS) // __declspec (dllexport) id important for dynamic loading
+#if defined(WIN32) && !defined(STATIC_UNIT_TESTS)
 extern "C" __declspec (dllexport) AngleAndComsumerPlugin * __cdecl create() {
 	return new OBEmpowerPlugin;
 }
@@ -310,7 +292,3 @@ extern "C" __declspec (dllexport) void __cdecl destroy(AngleAndComsumerPlugin * 
 	delete p;
 }
 #endif
-
-
-
-
