@@ -5,7 +5,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
-#include <GetTime.h> // Custom time utility
+#include <getTime.h> // Custom time utility
 #include <ExecutionXmlReader.h> // For reading CEINMS configuration
 #include <algorithm>
 #include <stdexcept> // For std::runtime_error
@@ -69,7 +69,7 @@ const double& OBEmpowerPlugin::getTime(){
 }
 
 // Getters remain largely the same, just the source of data changes upstream
-double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const { 
+double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const {
 	if(this->_jointAngle.find(dofName) == this->_jointAngle.end()){
 		std::cout << "Warning: Cannot find angle data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
@@ -78,51 +78,51 @@ double OBEmpowerPlugin::getDofAngle(const std::string& dofName) const { 
 }
 double OBEmpowerPlugin::getDofTorque(const std::string& dofName) const {
 	if(this->_jointTorqueFromExternalOrID.find(dofName) == this->_jointTorqueFromExternalOrID.end()){ // Note: Original had "_moment" suffix, removed for simplicity with OSLv2
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	// std::string tagName = dofName + "_moment"; // Removed suffix assumption
 	return this->_jointTorqueFromExternalOrID.at(dofName); // Use raw dofName
 }
-double OBEmpowerPlugin::getCEINMSDofTorque(const std::string& dofName) const { 
+double OBEmpowerPlugin::getCEINMSDofTorque(const std::string& dofName) const {
 	if(this->_jointTorqueFromCEINMS.find(dofName) == this->_jointTorqueFromCEINMS.end()){
-		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+		std::cout << "Warning: Cannot find torque data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_jointTorqueFromCEINMS.at(dofName);
 }
-double OBEmpowerPlugin::getDofStiffness(const std::string& dofName) const { 
+double OBEmpowerPlugin::getDofStiffness(const std::string& dofName) const {
 	if(this->_jointStiffness.find(dofName) == this->_jointStiffness.end()){
-		std::cout << "Warning: Cannot find stiffness data for source " << dofName << " at timestep " << this->_timeStamp  << std::endl;
+		std::cout << "Warning: Cannot find stiffness data for source " << dofName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_jointStiffness.at(dofName);
 }
-double OBEmpowerPlugin::getMuscleForce(const std::string& muscleName) const { 
+double OBEmpowerPlugin::getMuscleForce(const std::string& muscleName) const {
 	if(this->_muscleForce.find(muscleName) == this->_muscleForce.end()){
-		std::cout << "Warning: Cannot find force data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
+		std::cout << "Warning: Cannot find force data for source " << muscleName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_muscleForce.at(muscleName);
 }
-double OBEmpowerPlugin::getMuscleFiberLength(const std::string& muscleName) const { 
+double OBEmpowerPlugin::getMuscleFiberLength(const std::string& muscleName) const {
 	if(this->_muscleFiberLength.find(muscleName) == this->_muscleFiberLength.end()){
-		std::cout << "Warning: Cannot find fiber length data for source " << muscleName << " at timestep " << this->_timeStamp  << std::endl;
+		std::cout << "Warning: Cannot find fiber length data for source " << muscleName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
     // Assuming 'optimalFiberLength' is a scaling factor for normalized fiber length
 	return this->_muscleFiberLength.at(muscleName) * this->_subjectMuscleParameters.at(muscleName).at("optimalFiberLength");
 }
-double OBEmpowerPlugin::getMuscleFiberVelocity(const std::string& muscleName) const { 
+double OBEmpowerPlugin::getMuscleFiberVelocity(const std::string& muscleName) const {
 	if(this->_muscleFiberVelocity.find(muscleName) == this->_muscleFiberVelocity.end()){
-		std::cout << "Warning: Cannot find fiber velocity data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
+		std::cout << "Warning: Cannot find fiber velocity data for source " << muscleName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_muscleFiberVelocity.at(muscleName);
 }
-double OBEmpowerPlugin::getMuscleActivation(const std::string& muscleName) const { 
+double OBEmpowerPlugin::getMuscleActivation(const std::string& muscleName) const {
 	if(this->_muscleActivation.find(muscleName) == this->_muscleActivation.end()){
-		std::cout << "Warning: Cannot find activation data for source " << muscleName  << " at timestep " << this->_timeStamp << std::endl;
+		std::cout << "Warning: Cannot find activation data for source " << muscleName << " at timestep " << this->_timeStamp << std::endl;
 		return 0;
 	}
 	return this->_muscleActivation.at(muscleName);

@@ -8,6 +8,7 @@
 #include <set>
 #include <mutex>
 #include <thread>
+#include <memory>
 //#include <tcAdsClient.h>
 // #include <PluginCommon.hpp>
 
@@ -51,8 +52,8 @@ struct Oslv2CommandPacket {
 	class __declspec(dllexport) OBEmpowerPlugin : public AngleAndComsumerPlugin {
 #endif
 #ifdef UNIX
-	class OBEmpowerPlugin : public AngleAndComsumerPlugin {
-#endif
+	class OBEmpowerPlugin : public AngleAndComsumerPlugin{
+	#endif
 
 	// Private Variables:
 	std::vector<std::string> _muscleNames;
@@ -163,8 +164,8 @@ public:
 		this->_outputTimeStamp = timeStamp;
 	}
 
-	const std::vector<std::string>& GetDofName() { 
-		return this->_dofNames; 
+	const std::vector<std::string>& GetDofName() {
+		return this->_dofNames;
 		}
 
 	// Interface to provide an easy access method to collect data supplied by CEINMS
@@ -177,7 +178,7 @@ public:
 	double getMuscleFiberVelocity(const std::string& muscleName) const;
 	double getMuscleActivation(const std::string& muscleName) const;
 
-	void setMuscleForce(const std::vector<double>& muscleForce)  {
+	void setMuscleForce(const std::vector<double>& muscleForce){
 		for(int idx = 0; idx < muscleForce.size(); idx++ ){
 			std::string& tag = this->_muscleNames[idx];
 			this->_muscleForce[tag] = muscleForce[idx];
@@ -191,7 +192,7 @@ public:
 		}
 	}
 
-	void setMuscleFiberVelocity(const std::vector<double>& muscleFiberVelocity)  {
+	void setMuscleFiberVelocity(const std::vector<double>& muscleFiberVelocity) {
 		for(int idx = 0; idx < muscleFiberVelocity.size(); idx++ ){
 			std::string& tag = this->_muscleNames[idx];
 			this->_muscleFiberVelocity[tag] = muscleFiberVelocity[idx];
