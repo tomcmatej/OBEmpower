@@ -21,6 +21,8 @@
 // port: 12346
 // both localhost (same hardware)
 
+#include <atomic>
+
 // For UDP sockets
 #include <sys/socket.h>
 #include <netinet/in.h> // For sockaddr_in, IPPROTO_UDP
@@ -73,7 +75,7 @@ struct Oslv2CommandPacket {
 	std::map<std::string, double> _dataTorqueUdp; // Data received from UDP
 	std::mutex _mtxUdpData; // Mutex for UDP received data
 	std::mutex _mtxTime;    // Mutex for time variables
-	bool _threadStop;
+	std::atomic<bool> _threadStop; // <--- CHANGE: Use std::atomic<bool> for thread synchronization
 	int _cpt; // Counter, not strictly UDP-related but kept from original
 	double _timeStamp;	
 	double _timeStampUdp; // Timestamp of last UDP data reception

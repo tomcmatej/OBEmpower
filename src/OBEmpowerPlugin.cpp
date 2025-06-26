@@ -50,7 +50,8 @@ const std::map<std::string, double>& OBEmpowerPlugin::GetDataMapTorque()
 
 void OBEmpowerPlugin::stop()
 {
-	_threadStop = true; // Signal the UDP communication thread to stop
+	// _threadStop = true; // Signal the UDP communication thread to stop
+    _threadStop.store(true); // <--- CHANGE: Use .store() for atomic write
 
     // Ensure the thread exists before trying to join it
     if (_udpCommThread && _udpCommThread->joinable()) {
@@ -191,9 +192,18 @@ void OBEmpowerPlugin::udpCommThread()
     // Define a buffer for receiving UDP packets
     Oslv2DataPacket recvPacket; // Use the defined struct for direct reception
     socklen_t addrLen = sizeof(struct sockaddr_in); // Size of address structure for recvfrom
+    // Set a timeout for receiving to allow the thread to check the 'running' flag
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+    if (setsockopt(_udpSocketFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        std::cerr << "Warning: setsockopt(SO_RCVTIMEO) failed." << std::endl;
+    }
 
-	while (!_threadStop)
-	{
+	//while (!_threadStop)
+	//{
+    while (!_threadStop.load()) // <--- CHANGE: Use .load() for atomic read
+    {
 		timeLocal = rtb::getTime();
 
         // Try to receive a UDP packet. Blocking call, will wait here until a packet arrives
