@@ -27,5 +27,5 @@ target_link_libraries("${PROJECT_NAME}"
 	Boost::boost
 	# PluginHeritance
 	# PluginCommon
-	pthreads
+	pthread
 	)
