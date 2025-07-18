@@ -32,6 +32,7 @@ void OBEmpowerPlugin::init(std::string& executionFilename)
     // If you need CEINMS to configure the ports, you'd add methods to ExecutionXmlReader
     // to parse custom UDP port settings from the XML.
 	initUdp(OSLV2_UDP_RECV_PORT, OSLV2_IP_ADDRESS, OSLV2_UDP_SEND_PORT);
+    
 }
 
 const std::map<std::string, double>& OBEmpowerPlugin::GetDataMap()
@@ -268,6 +269,37 @@ void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
     // Clamp the ankle torque setpoint to be within defined limits
 	sendPacket.torqueSetpoint_Nm = std::min(std::max((float)this->_jointTorqueFromCEINMS["ankle_angle_r"], EMPOWER_MIN_TORQUE), EMPOWER_MAX_TORQUE);
 
+    
+    // Get and assign muscle force and activation data
+    // It's good practice to check if the muscle exists in the map before accessing
+    sendPacket.tibAntR_Force = 0.0f; // Default value
+    if (this->_muscleForce.count("tib_ant_r")) {
+        sendPacket.tibAntR_Force = (float)this->_muscleForce.at("tib_ant_r");
+    } else {
+        std::cerr << "Warning: tib_ant_r muscle force not found!" << std::endl;
+    }
+
+    sendPacket.soleusR_Force = 0.0f; // Default value
+    if (this->_muscleForce.count("soleus_r")) {
+        sendPacket.soleusR_Force = (float)this->_muscleForce.at("soleus_r");
+    } else {
+        std::cerr << "Warning: soleus_r muscle force not found!" << std::endl;
+    }
+
+    sendPacket.tibAntR_EMG = 0.0f; // Default value
+    if (this->_muscleActivation.count("tib_ant_r")) {
+        sendPacket.tibAntR_EMG = (float)this->_muscleActivation.at("tib_ant_r");
+    } else {
+        std::cerr << "Warning: tib_ant_r muscle activation not found!" << std::endl;
+    }
+
+    sendPacket.soleusR_EMG = 0.0f; // Default value
+    if (this->_muscleActivation.count("soleus_r")) {
+        sendPacket.soleusR_EMG = (float)this->_muscleActivation.at("soleus_r");
+    } else {
+        std::cerr << "Warning: soleus_r muscle activation not found!" << std::endl;
+    }
+
     // Send the UDP packet to OSLv2
     // sendto returns the number of bytes sent, or -1 on error
     ssize_t bytes_sent = sendto(_udpSocketFd, &sendPacket, sizeof(sendPacket), 0,
@@ -280,6 +312,7 @@ void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
                   << sizeof(sendPacket) << " bytes for torque command." << std::endl;
     }
 }
+
 
 
 // Factory functions (remain unchanged)

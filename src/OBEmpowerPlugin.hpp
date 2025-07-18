@@ -31,10 +31,11 @@
 // UDP Communication Definitions
 #define OSLV2_UDP_RECV_PORT 12345 
 #define OSLV2_UDP_SEND_PORT 12346 
-#define OSLV2_IP_ADDRESS "127.0.0.1" // Localhost IP
+//#define OSLV2_IP_ADDRESS "127.0.0.1" // Localhost IP
+#define OSLV2_IP_ADDRESS "145.126.73.137" // Remote display laptop IP
 
-#define EMPOWER_MAX_TORQUE	30.0f	// Nm
-#define EMPOWER_MIN_TORQUE -30.0f	// Nm
+#define EMPOWER_MAX_TORQUE	200.0f	// Nm
+#define EMPOWER_MIN_TORQUE -200.0f	// Nm
 
 // Structure for data received from OSLv2
 // This ensures consistent byte order and size, similar to Python's struct.pack/unpack
@@ -46,6 +47,10 @@ struct Oslv2DataPacket {
 // Structure for command sent to OSLv2
 struct Oslv2CommandPacket {
     float torqueSetpoint_Nm;
+    float tibAntR_Force; // Added: Tibialis anterior right muscle force
+    float soleusR_Force; // Added: Soleus right muscle force
+    float tibAntR_EMG;   // Added: Tibialis anterior right EMG
+    float soleusR_EMG;   // Added: Soleus right EMG
 };
 
 
