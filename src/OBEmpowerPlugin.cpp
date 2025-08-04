@@ -286,19 +286,21 @@ void OBEmpowerPlugin::setDofTorque(const std::vector<double>& dofTorque){
         std::cerr << "Warning: soleus_r muscle force not found!" << std::endl;
     }
 
+
+    // WARNING! _muscleActivation for some reason not accessible in this type of plugin
     sendPacket.tibAntR_EMG = 0.0f; // Default value
-    if (this->_muscleActivation.count("tib_ant_r")) {
-        sendPacket.tibAntR_EMG = (float)this->_muscleActivation.at("tib_ant_r");
-    } else {
-        std::cerr << "Warning: tib_ant_r muscle activation not found!" << std::endl;
-    }
+    // if (this->_muscleActivation.count("tib_ant_r")) {
+    //     sendPacket.tibAntR_EMG = (float)this->_muscleActivation.at("tib_ant_r");
+    // } else {
+    //     std::cerr << "Warning: tib_ant_r muscle activation not found!" << std::endl;
+    // }
 
     sendPacket.soleusR_EMG = 0.0f; // Default value
-    if (this->_muscleActivation.count("soleus_r")) {
-        sendPacket.soleusR_EMG = (float)this->_muscleActivation.at("soleus_r");
-    } else {
-        std::cerr << "Warning: soleus_r muscle activation not found!" << std::endl;
-    }
+    // if (this->_muscleActivation.count("soleus_r")) {
+    //     sendPacket.soleusR_EMG = (float)this->_muscleActivation.at("soleus_r");
+    // } else {
+    //     std::cerr << "Warning: soleus_r muscle activation not found!" << std::endl;
+    // }
 
     // Send the UDP packet to OSLv2
     // sendto returns the number of bytes sent, or -1 on error
