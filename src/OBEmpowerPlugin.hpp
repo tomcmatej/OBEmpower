@@ -31,8 +31,8 @@
 // UDP Communication Definitions
 #define OSLV2_UDP_RECV_PORT 12345 
 #define OSLV2_UDP_SEND_PORT 12346 
-//#define OSLV2_IP_ADDRESS "127.0.0.1" // Localhost IP
-#define OSLV2_IP_ADDRESS "145.126.73.137" // Remote display laptop IP
+#define OSLV2_IP_ADDRESS "127.0.0.1" // Localhost IP
+//#define OSLV2_IP_ADDRESS "145.126.73.137" // Remote display laptop IP
 
 #define EMPOWER_MAX_TORQUE	200.0f	// Nm
 #define EMPOWER_MIN_TORQUE -200.0f	// Nm
